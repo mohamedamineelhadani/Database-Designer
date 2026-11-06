@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Database Manager · Mohamed Amine El Hadani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  
+<div class="container">
+  <div class="header">
+    <div><h1><i class="fas fa-gem"></i> Database Designer</h1><div class="stats" id="stats"></div></div>
+    <div class="signature"><i class="fas fa-user-graduate"></i> Mohamed Amine El Hadani</div>
+  </div>
+
+  <div class="toolbar">
+    <button class="primary" onclick="createTable()"><i class="fas fa-table"></i> New Table</button>
+    <button onclick="renameDatabase()"><i class="fas fa-pen"></i> Rename DB</button>
+    <button id="relToggleBtn" onclick="toggleRelationships()"><i class="fas fa-diagram-project"></i> Relationships</button>
+    <button onclick="undo()" title="Undo (Ctrl+Z)"><i class="fas fa-rotate-left"></i></button>
+    <button onclick="redo()" title="Redo (Ctrl+Y)"><i class="fas fa-rotate-right"></i></button>
+    <span class="spacer"></span>
+    <button class="danger" onclick="deleteDatabase()"><i class="fas fa-trash"></i> Reset DB</button>
+    <span class="dbtag"><i class="fas fa-database"></i> <span id="currentDbDisplay">product_management</span></span>
+  </div>
+
+  <div class="main-grid">
+    <div class="structure-panel" id="structurePanel">
+      <div class="panel-title"><i class="fas fa-sitemap"></i> Structure</div>
+      <div class="structure-item active" data-view="tables" onclick="setView('tables')"><i class="fas fa-table"></i> Tables</div>
+      <div class="structure-item" data-view="browse" onclick="setView('browse')"><i class="fas fa-table-list"></i> Data</div>
+      <div class="structure-item" data-view="search" onclick="setView('search')"><i class="fas fa-search"></i> Search</div>
+      <div class="structure-item" data-view="query" onclick="setView('query')"><i class="fas fa-terminal"></i> Query</div>
+      <div class="structure-item" onclick="openExportModal()"><i class="fas fa-file-export"></i> Export</div>
+      <div class="structure-item" onclick="openImportModal()"><i class="fas fa-file-import"></i> Import</div>
+      <div class="sp-spacer"></div>
+      <div class="structure-item" data-view="operations" onclick="setView('operations')"><i class="fas fa-cogs"></i> Operations</div>
+      <div class="structure-item" data-view="privileges" onclick="setView('privileges')"><i class="fas fa-user-lock"></i> Privileges</div>
+      <div class="structure-item" data-view="routines" onclick="setView('routines')"><i class="fas fa-code-branch"></i> Routines</div>
+      <div class="structure-item" data-view="events" onclick="setView('events')"><i class="fas fa-clock"></i> Events</div>
+      <div class="structure-item" data-view="triggers" onclick="setView('triggers')"><i class="fas fa-bolt"></i> Triggers</div>
+      <div class="structure-item" data-view="history" onclick="setView('history')"><i class="fas fa-pen-fancy"></i> History</div>
+    </div>
+
+    <div class="diagram-area">
+      <div class="diagram-header">
+        <h3 id="viewTitle"><i class="fas fa-project-diagram"></i> Diagram · <span id="diagramDbName">product_management</span></h3>
+        <span class="db-badge"><i class="fas fa-tag"></i> schema: public</span>
+      </div>
+      <div id="viewContainer"></div>
+    </div>
+  </div>
+
+  <div class="console-area">
+    <div class="console-top">
+      <div class="console-label"><i class="fas fa-terminal"></i> Console</div>
+      <div class="console-input">
+        <i class="fas fa-chevron-right"></i>
+        <input type="text" id="consoleInput" placeholder="SHOW TABLES; DESCRIBE products; SELECT * FROM products; DROP TABLE x;" onkeydown="if(event.key==='Enter') runConsole()">
+      </div>
+      <button class="btn-console" onclick="runConsole()"><i class="fas fa-play"></i> Execute</button>
+      <button class="btn-console" onclick="setView('history')"><i class="fas fa-history"></i> History</button>
+    </div>
+    <div class="console-output" id="consoleOutput">SHOW TABLES FROM product_management;
+→ categories, products</div>
+  </div>
+
+  <div class="footer"><i class="fas fa-graduation-cap"></i> Mohamed Amine El Hadani · Interactive Database Teaching Demo</div>
+</div>
+
+<!-- Simple text modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Create Database</h3>
+    <input type="text" id="modalInput" placeholder="Enter name...">
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-confirm" onclick="modalConfirm()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Column editor modal -->
+<div class="modal-overlay" id="columnModalOverlay">
+  <div class="modal">
+    <h3 id="columnModalTitle"><i class="fas fa-columns"></i> Add Column</h3>
+    <span class="field-label">Column name</span>
+    <input type="text" id="colNameInput" placeholder="e.g. category_id">
+    <div class="field-row">
+      <div>
+        <span class="field-label">Data type</span>
+        <select id="colTypeSelect" onchange="onColTypeChange()">
+          <option>INT</option><option>BIGINT</option><option>VARCHAR(255)</option>
+          <option>TEXT</option><option>DECIMAL(10,2)</option><option>FLOAT</option>
+          <option>BOOLEAN</option><option>DATE</option><option>DATETIME</option>
+          <option>TIMESTAMP</option><option>JSON</option><option>ENUM('a','b')</option>
+          <option value="__custom">Custom…</option>
+        </select>
+      </div>
+    </div>
+    <input type="text" id="colTypeCustom" placeholder="Custom type, e.g. char(3)" style="display:none;">
+    <div class="check-grid">
+      <label class="check-item"><input type="checkbox" id="colPk"> Primary Key</label>
+      <label class="check-item"><input type="checkbox" id="colNotNull"> Not Null</label>
+      <label class="check-item"><input type="checkbox" id="colUnique"> Unique</label>
+      <label class="check-item"><input type="checkbox" id="colAi"> Auto Increment</label>
+      <label class="check-item"><input type="checkbox" id="colFkToggle" onchange="toggleFkFields()"> Foreign Key</label>
+    </div>
+    <div id="fkFields" style="display:none;">
+      <div class="field-row">
+        <div>
+          <span class="field-label">References table</span>
+          <select id="fkTableSelect" onchange="populateFkColumnOptions()"></select>
+        </div>
+        <div>
+          <span class="field-label">References column</span>
+          <select id="fkColumnSelect"></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeColumnModal()">Cancel</button>
+      <button class="btn-confirm" onclick="submitColumnModal()">Save Column</button>
+    </div>
+  </div>
+</div>
+
+<!-- Row data modal -->
+<div class="modal-overlay" id="rowModalOverlay">
+  <div class="modal">
+    <h3 id="rowModalTitle"><i class="fas fa-list"></i> Row</h3>
+    <div id="rowFieldsContainer"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRowModal()">Cancel</button>
+      <button class="btn-confirm" onclick="submitRowModal()">Save Row</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export modal -->
+<div class="modal-overlay" id="exportModalOverlay">
+  <div class="modal wide">
+    <h3><i class="fas fa-file-export"></i> Export SQL</h3>
+    <textarea id="exportTextarea" readonly></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModalById('exportModalOverlay')">Close</button>
+      <button class="btn-copy" onclick="copyExport()"><i class="fas fa-copy"></i> Copy</button>
+      <button class="btn-confirm" onclick="downloadExport()"><i class="fas fa-download"></i> Download .sql</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import modal -->
+<div class="modal-overlay" id="importModalOverlay">
+  <div class="modal wide">
+    <h3><i class="fas fa-file-import"></i> Import SQL</h3>
+    <p style="color:var(--muted);font-size:0.82rem;margin-bottom:0.8rem;">Paste CREATE TABLE statements (standard SQL). Existing tables with the same name will be replaced.</p>
+    <textarea id="importTextarea" placeholder="CREATE TABLE orders (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  product_id INT,
+  FOREIGN KEY (product_id) REFERENCES products(id)
+);"></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModalById('importModalOverlay')">Cancel</button>
+      <button class="btn-confirm" onclick="runImport()"><i class="fas fa-check"></i> Import</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+<div class="modal-overlay" id="confirmOverlay"><div class="modal"><h3><i class="fas fa-triangle-exclamation"></i> Please confirm</h3><p id="confirmMsg"></p><div class="modal-actions"><button class="btn-cancel" onclick="closeModalById('confirmOverlay')">Cancel</button><button class="btn-confirm" onclick="const f=confirmCb;closeModalById('confirmOverlay');if(f)f()">Confirm</button></div></div></div>
+
+</body>
+</html>
